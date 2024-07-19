@@ -1,7 +1,17 @@
 {
-    "name": "project-deployment",
-    "version": "1.0.0",
-    "main": "index.js",
-    "license": "MIT"
+  "name": "api-next",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "ethers": "^5.5.1",
+    "next": "11.1.2",
+    "react": "17.0.2",
+    "react-dom": "17.0.2",
+    "yarn": "^1.22.22"
   }
-  
+}
