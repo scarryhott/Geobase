@@ -47,19 +47,28 @@ jobs:
             --arg current_content "$CURRENT_CONTENT" \
             --arg issue_body "$ISSUE_BODY" \
             '{
-              model: "text-davinci-003",
-              prompt: "Given the following existing code and task description, generate an updated version of the code. Existing code: \($current_content) Task description: \($issue_body)",
+              model: "gpt-3.5-turbo",
+              messages: [
+                {
+                  role: "system",
+                  content: "You are a helpful assistant."
+                },
+                {
+                  role: "user",
+                  content: "Given the following existing code and task description, generate an updated version of the code. Existing code: \($current_content) Task description: \($issue_body)"
+                }
+              ],
               max_tokens: 150
             }')
 
-          RESPONSE=$(curl -s -X POST https://api.openai.com/v1/completions \
+          RESPONSE=$(curl -s -X POST https://api.openai.com/v1/chat/completions \
             -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d "$PAYLOAD")
           
           echo "API Response: $RESPONSE"
 
-          GENERATED_CODE=$(echo "$RESPONSE" | jq -r '.choices[0].text')
+          GENERATED_CODE=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
           echo "Generated code: $GENERATED_CODE"
 
           if [ "$GENERATED_CODE" = "null" ] || [ -z "$GENERATED_CODE" ]; then
