@@ -2,7 +2,7 @@ name: Trello to Code
 
 on:
   issues:
-    types: [opened, edited]
+    types: [edited]
 
 jobs:
   trello_to_code:
