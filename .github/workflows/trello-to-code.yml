@@ -51,9 +51,14 @@ jobs:
 
           git add "$FILE_NAME"
           git commit -m "Add/update file for issue $ISSUE_TITLE"
+
+          # Pull the latest changes from the remote repository to avoid conflicts
+          git pull --rebase origin main
           
           # Configure remote URL to use the GitHub token
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-          git push origin HEAD:main
+          
+          # Push the changes to the remote repository
+          git push origin main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
