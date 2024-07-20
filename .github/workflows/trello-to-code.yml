@@ -2,7 +2,7 @@ name: Trello to Code
 
 on:
   issues:
-    types: [edited]
+    types: [opened, edited]
 
 jobs:
   trello_to_code:
@@ -19,11 +19,19 @@ jobs:
       - name: Install jq
         run: sudo apt-get install -y jq
       
-      - name: Generate Code from Trello Description
+      - name: Generate Code from Issue Description
         id: generate_code
         run: |
           ISSUE_TITLE="${{ github.event.issue.title }}"
           ISSUE_BODY="${{ github.event.issue.body }}"
+          echo "Issue title: $ISSUE_TITLE"
+          echo "Issue body: $ISSUE_BODY"
+          
+          if [ -z "$ISSUE_BODY" ]; then
+            echo "No description provided. Exiting."
+            exit 0
+          fi
+
           RESPONSE=$(curl -s -X POST https://api.openai.com/v1/engines/davinci-codex/completions \
             -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
             -H "Content-Type: application/json" \
