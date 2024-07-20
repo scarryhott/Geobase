@@ -47,9 +47,12 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{
               "model": "text-davinci-003",
-              "prompt": "Given the following existing code and task description, generate an updated version of the code. Existing code: '"${CURRENT_CONTENT}"'. Task description: '"${ISSUE_BODY}"'",
+              "prompt": "Given the following existing code and task description, generate an updated version of the code. Existing code: '"${CURRENT_CONTENT}"' Task description: '"${ISSUE_BODY}"'",
               "max_tokens": 150
             }')
+          
+          echo "API Response: $RESPONSE"
+
           GENERATED_CODE=$(echo "$RESPONSE" | jq -r '.choices[0].text')
           echo "Generated code: $GENERATED_CODE"
 
