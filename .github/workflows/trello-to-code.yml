@@ -18,12 +18,13 @@ jobs:
       
       - name: Install jq
         run: sudo apt-get install -y jq
-      
+
       - name: Generate Code from Issue Description
         id: generate_code
         run: |
           ISSUE_TITLE="${{ github.event.issue.title }}"
           ISSUE_BODY="${{ github.event.issue.body }}"
+          FILE_NAME=$(echo "$ISSUE_TITLE" | tr ' ' '_').py
           echo "Issue title: $ISSUE_TITLE"
           echo "Issue body: $ISSUE_BODY"
           
@@ -32,35 +33,35 @@ jobs:
             exit 0
           fi
 
+          # Read the current content of the file if it exists
+          if [[ -f "$FILE_NAME" ]]; then
+            CURRENT_CONTENT=$(cat "$FILE_NAME")
+          else
+            CURRENT_CONTENT=""
+          fi
+          
+          echo "Current file content: $CURRENT_CONTENT"
+
           RESPONSE=$(curl -s -X POST https://api.openai.com/v1/completions \
             -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d '{
               "model": "text-davinci-003",
-              "prompt": "Generate code for the following task: '"${ISSUE_BODY}"'",
+              "prompt": "Given the following existing code and task description, generate an updated version of the code. Existing code: '"${CURRENT_CONTENT}"'. Task description: '"${ISSUE_BODY}"'",
               "max_tokens": 150
             }')
           GENERATED_CODE=$(echo "$RESPONSE" | jq -r '.choices[0].text')
-          echo "$GENERATED_CODE" > generated_code.py
-          cat generated_code.py
+          echo "Generated code: $GENERATED_CODE"
+
+          echo "$GENERATED_CODE" > "$FILE_NAME"
 
       - name: Update or Create File with Generated Code
         run: |
           ISSUE_TITLE="${{ github.event.issue.title }}"
           FILE_NAME=$(echo "$ISSUE_TITLE" | tr ' ' '_').py
-          GENERATED_CODE=$(cat generated_code.py)
-
-          echo "Processing file: $FILE_NAME"
-          echo "Generated code: $GENERATED_CODE"
-
-          if [[ -f "$FILE_NAME" ]]; then
-            echo "$GENERATED_CODE" >> "$FILE_NAME"
-          else
-            echo "$GENERATED_CODE" > "$FILE_NAME"
-          fi
 
           git add "$FILE_NAME"
-          git commit -m "Add/update file for issue $ISSUE_TITLE"
+          git commit -m "Update file for issue $ISSUE_TITLE"
 
           # Pull the latest changes from the remote repository to avoid conflicts
           git pull --rebase origin main
