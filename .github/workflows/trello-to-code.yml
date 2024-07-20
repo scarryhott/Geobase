@@ -30,9 +30,9 @@ jobs:
           ISSUE_BODY="${{ github.event.issue.body }}"
           FILE_NAME=$(echo "$ISSUE_TITLE" | tr ' ' '_').py
 
-          python3 <<EOF
-from transformers import AutoModelForCausalLM, AutoTokenizer
+          python3 - <<EOF
 import os
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 model_name = "EleutherAI/gpt-neo-125M"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -46,8 +46,8 @@ def generate_updated_code(file_name, task_description):
         existing_code = ""
 
     prompt = (
-        f"Here is the existing code:\\n\\n{existing_code}\\n\\n"
-        f"Here is the task description:\\n\\n{task_description}\\n\\n"
+        f"Here is the existing code:\\n\\n{{existing_code}}\\n\\n"
+        f"Here is the task description:\\n\\n{{task_description}}\\n\\n"
         "Please provide only the updated version of the code below:\\n"
         "Updated code:\\n"
     )
@@ -66,7 +66,7 @@ updated_code = generate_updated_code(file_name, task_description)
 with open(file_name, 'w') as file:
     file.write(updated_code)
 
-print(f"Updated code written to {file_name}:")
+print(f"Updated code written to {{file_name}}:")
 print(updated_code)
 EOF
 
@@ -80,3 +80,4 @@ EOF
           git push origin main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
