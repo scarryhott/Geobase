@@ -16,6 +16,9 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
       
+      - name: Install jq
+        run: sudo apt-get install -y jq
+      
       - name: Generate Code from Trello Description
         id: generate_code
         run: |
@@ -35,7 +38,7 @@ jobs:
         run: |
           ISSUE_TITLE="${{ github.event.issue.title }}"
           FILE_NAME=$(echo "$ISSUE_TITLE" | tr ' ' '_').py
-          GENERATED_CODE="${{ env.RESPONSE }}"
+          GENERATED_CODE=$(echo "${{ env.RESPONSE }}" | jq -r '.choices[0].text')
 
           echo "Processing file: $FILE_NAME"
           echo "Generated code: $GENERATED_CODE"
@@ -51,3 +54,5 @@ jobs:
           fi
 
           git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
