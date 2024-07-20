@@ -31,14 +31,14 @@ jobs:
               "prompt": "Generate code for the following task: '"${ISSUE_BODY}"'",
               "max_tokens": 150
             }')
-          echo "RESPONSE=$RESPONSE" >> $GITHUB_ENV
-          echo "Generated code: $RESPONSE"
+          echo "$RESPONSE" | jq -r '.choices[0].text' > generated_code.py
+          cat generated_code.py
 
       - name: Update or Create File with Generated Code
         run: |
           ISSUE_TITLE="${{ github.event.issue.title }}"
           FILE_NAME=$(echo "$ISSUE_TITLE" | tr ' ' '_').py
-          GENERATED_CODE=$(echo "${{ env.RESPONSE }}" | jq -r '.choices[0].text')
+          GENERATED_CODE=$(cat generated_code.py)
 
           echo "Processing file: $FILE_NAME"
           echo "Generated code: $GENERATED_CODE"
