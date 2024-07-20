@@ -1,0 +1,53 @@
+name: Trello to Code
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  trello_to_code:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Configure Git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+      
+      - name: Generate Code from Trello Description
+        id: generate_code
+        run: |
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+          ISSUE_BODY="${{ github.event.issue.body }}"
+          RESPONSE=$(curl -s -X POST https://api.openai.com/v1/engines/davinci-codex/completions \
+            -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "prompt": "Generate code for the following task: '"${ISSUE_BODY}"'",
+              "max_tokens": 150
+            }')
+          echo "RESPONSE=$RESPONSE" >> $GITHUB_ENV
+          echo "Generated code: $RESPONSE"
+
+      - name: Update or Create File with Generated Code
+        run: |
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+          FILE_NAME=$(echo "$ISSUE_TITLE" | tr ' ' '_').py
+            GENERATED_CODE="$RESPONSE"
+
+          echo "Processing file: $FILE_NAME"
+          echo "Generated code: $GENERATED_CODE"
+
+          if [[ -f "$FILE_NAME" ]]; then
+            echo "$GENERATED_CODE" >> "$FILE_NAME"
+            git add "$FILE_NAME"
+            git commit -m "Update file for issue $ISSUE_TITLE"
+          else
+            echo "$GENERATED_CODE" > "$FILE_NAME"
+            git add "$FILE_NAME"
+            git commit -m "Add file for issue $ISSUE_TITLE"
+          fi
+
+          git push
