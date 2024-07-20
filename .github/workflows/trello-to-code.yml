@@ -1,8 +1,9 @@
 name: Trello to Code
 
 on:
-  issues:
-    types: [opened, edited]
+  workflow_dispatch:
+  repository_dispatch:
+    types: [trello_card_updated]
 
 jobs:
   trello_to_code:
@@ -18,66 +19,102 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install transformers torch
+          pip install transformers torch requests
 
-      - name: Generate Code from Issue Description
-        id: generate_code
+      - name: Check Original Code Functionalities
+        id: check_original_code
         run: |
-          echo "Issue title: ${{ github.event.issue.title }}"
-          echo "Issue body: ${{ github.event.issue.body }}"
-          
-          ISSUE_TITLE="${{ github.event.issue.title }}"
-          ISSUE_BODY="${{ github.event.issue.body }}"
-          FILE_NAME=$(echo "$ISSUE_TITLE" | tr ' ' '_').py
+          import requests
 
-          python3 - <<EOF
-import os
-from transformers import AutoModelForCausalLM, AutoTokenizer
+          API_URL = "https://api-inference.huggingface.co/models/distilgpt2"
+          API_KEY = "${{ secrets.HUGGINGFACE_API_KEY }}"
+          headers = {"Authorization": f"Bearer {API_KEY}"}
 
-model_name = "EleutherAI/gpt-neo-125M"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name)
+          def query(payload):
+              response = requests.post(API_URL, headers=headers, json=payload)
+              return response.json()
 
-def generate_updated_code(file_name, task_description):
-    if os.path.exists(file_name):
-        with open(file_name, 'r') as file:
-            existing_code = file.read()
-    else:
-        existing_code = ""
+          existing_code = "console.log('Hello, World!');"  # Example; replace with actual code
+          prompt = (
+              f"Here is the existing code:\n\n{existing_code}\n\n"
+              "Please list all the functionalities of this code in a concise manner.\n"
+          )
+          output = query({"inputs": prompt})
+          functionalities = output[0]['generated_text']
+          print("Documented functionalities:", functionalities)
 
-    prompt = (
-        f"Here is the existing code:\\n\\n{{existing_code}}\\n\\n"
-        f"Here is the task description:\\n\\n{{task_description}}\\n\\n"
-        "Please provide only the updated version of the code below:\\n"
-        "Updated code:\\n"
-    )
+      - name: Check Card Description
+        id: check_card_description
+        run: |
+          card_description = "${{ github.event.client_payload.card_description }}"
+          if not card_description:
+              raise ValueError("Card description is empty.")
+          print("Validated description:", card_description)
 
-    inputs = tokenizer(prompt, return_tensors="pt")
-    outputs = model.generate(**inputs, max_length=300)
-    generated_code = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    updated_code = generated_code.split("Updated code:\\n")[-1].strip()
+      - name: Write Plan
+        id: write_plan
+        run: |
+          task_description = "${{ steps.check_card_description.outputs.card_description }}"
+          prompt = (
+              f"Task: {task_description}\n"
+              "Please provide a detailed plan to accomplish this task.\n"
+          )
+          output = query({"inputs": prompt})
+          plan = output[0]['generated_text']
+          print("Plan:", plan)
 
-    return updated_code
+      - name: Write Code for Specific Task
+        id: write_code
+        run: |
+          existing_code = "console.log('Hello, World!');"  # Example; replace with actual code
+          task_description = "${{ steps.check_card_description.outputs.card_description }}"
+          prompt = (
+              f"Here is the existing code:\n\n{existing_code}\n\n"
+              f"Task: {task_description}\n\n"
+              "Please provide the updated version of the code to accomplish the task.\n"
+          )
+          output = query({"inputs": prompt})
+          updated_code = output[0]['generated_text'].split("Updated code:\n")[-1].strip()
+          print("Updated code:", updated_code)
 
-file_name = "${FILE_NAME}"
-task_description = "${ISSUE_BODY}"
-updated_code = generate_updated_code(file_name, task_description)
-
-with open(file_name, 'w') as file:
-    file.write(updated_code)
-
-print(f"Updated code written to {{file_name}}:")
-print(updated_code)
-EOF
+      - name: Check All Functionalities Still Exist
+        id: check_functionalities
+        run: |
+          functionalities = "${{ steps.check_original_code.outputs.functionalities }}"
+          updated_code = "${{ steps.write_code.outputs.updated_code }}"
+          prompt = (
+              f"Existing functionalities:\n\n{functionalities}\n\n"
+              f"Updated code:\n\n{updated_code}\n\n"
+              "Please check if all existing functionalities still exist in the updated code.\n"
+          )
+          output = query({"inputs": prompt})
+          check_result = output[0]['generated_text']
+          print("Check result:", check_result)
+          if "all functionalities exist" not in check_result.lower():
+              raise ValueError("Not all functionalities exist in the updated code.")
 
       - name: Commit and Push Changes
+        if: success()
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add $(echo "$ISSUE_TITLE" | tr ' ' '_').py
-          git commit -m "Update file for issue $ISSUE_TITLE"
-          git pull --rebase origin main
+          echo "${{ steps.write_code.outputs.updated_code }}" > updated_code.py
+          git add updated_code.py
+          git commit -m "Update code for task: ${{ steps.check_card_description.outputs.card_description }}"
           git push origin main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Repeat Workflow if Functionalities Not Met
+        if: failure()
+        uses: actions/github-script@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const result = await github.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'trello-to-code.yml',
+              ref: 'main',
+              inputs: {
+                card_description: context.payload.client_payload.card_description,
+              },
+            })
