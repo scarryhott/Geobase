@@ -10,8 +10,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-        with:
-          ref: v2
 
       - name: Configure Git
         run: |
@@ -47,14 +45,15 @@ jobs:
 
           if [[ -f "$FILE_NAME" ]]; then
             echo "$GENERATED_CODE" >> "$FILE_NAME"
-            git add "$FILE_NAME"
-            git commit -m "Update file for issue $ISSUE_TITLE"
           else
             echo "$GENERATED_CODE" > "$FILE_NAME"
-            git add "$FILE_NAME"
-            git commit -m "Add file for issue $ISSUE_TITLE"
           fi
 
-          git push
+          git add "$FILE_NAME"
+          git commit -m "Add/update file for issue $ISSUE_TITLE"
+          
+          # Configure remote URL to use the GitHub token
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git push origin HEAD:main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
