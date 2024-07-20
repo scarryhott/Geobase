@@ -56,6 +56,11 @@ jobs:
           GENERATED_CODE=$(echo "$RESPONSE" | jq -r '.choices[0].text')
           echo "Generated code: $GENERATED_CODE"
 
+          if [ "$GENERATED_CODE" = "null" ] || [ -z "$GENERATED_CODE" ]; then
+            echo "Generated code is null or empty. Exiting."
+            exit 1
+          fi
+
           echo "$GENERATED_CODE" > "$FILE_NAME"
 
       - name: Update or Create File with Generated Code
