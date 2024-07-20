@@ -35,7 +35,7 @@ jobs:
         run: |
           ISSUE_TITLE="${{ github.event.issue.title }}"
           FILE_NAME=$(echo "$ISSUE_TITLE" | tr ' ' '_').py
-            GENERATED_CODE="$RESPONSE"
+          GENERATED_CODE="${{ env.RESPONSE }}"
 
           echo "Processing file: $FILE_NAME"
           echo "Generated code: $GENERATED_CODE"
