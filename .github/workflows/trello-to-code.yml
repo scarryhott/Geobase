@@ -32,14 +32,16 @@ jobs:
             exit 0
           fi
 
-          RESPONSE=$(curl -s -X POST https://api.openai.com/v1/engines/davinci-codex/completions \
+          RESPONSE=$(curl -s -X POST https://api.openai.com/v1/completions \
             -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d '{
+              "model": "text-davinci-003",
               "prompt": "Generate code for the following task: '"${ISSUE_BODY}"'",
               "max_tokens": 150
             }')
-          echo "$RESPONSE" | jq -r '.choices[0].text' > generated_code.py
+          GENERATED_CODE=$(echo "$RESPONSE" | jq -r '.choices[0].text')
+          echo "$GENERATED_CODE" > generated_code.py
           cat generated_code.py
 
       - name: Update or Create File with Generated Code
