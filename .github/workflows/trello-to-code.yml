@@ -11,88 +11,72 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Configure Git
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
         run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-      
-      - name: Install jq
-        run: sudo apt-get install -y jq
+          pip install transformers torch
 
       - name: Generate Code from Issue Description
         id: generate_code
         run: |
+          echo "Issue title: ${{ github.event.issue.title }}"
+          echo "Issue body: ${{ github.event.issue.body }}"
+          
           ISSUE_TITLE="${{ github.event.issue.title }}"
           ISSUE_BODY="${{ github.event.issue.body }}"
           FILE_NAME=$(echo "$ISSUE_TITLE" | tr ' ' '_').py
-          echo "Issue title: $ISSUE_TITLE"
-          echo "Issue body: $ISSUE_BODY"
-          
-          if [ -z "$ISSUE_BODY" ]; then
-            echo "No description provided. Exiting."
-            exit 0
-          fi
 
-          # Read the current content of the file if it exists
-          if [[ -f "$FILE_NAME" ]]; then
-            CURRENT_CONTENT=$(cat "$FILE_NAME")
-          else
-            CURRENT_CONTENT=""
-          fi
-          
-          echo "Current file content: $CURRENT_CONTENT"
+          python3 <<EOF
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import os
 
-          # Properly format the JSON payload
-          PAYLOAD=$(jq -n \
-            --arg current_content "$CURRENT_CONTENT" \
-            --arg issue_body "$ISSUE_BODY" \
-            '{
-              model: "gpt-3.5-turbo",
-              messages: [
-                {
-                  role: "system",
-                  content: "You are a helpful assistant."
-                },
-                {
-                  role: "user",
-                  content: "Given the following existing code and task description, generate an updated version of the code. Existing code: \($current_content) Task description: \($issue_body)"
-                }
-              ],
-              max_tokens: 150
-            }')
+model_name = "EleutherAI/gpt-neo-125M"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
 
-          RESPONSE=$(curl -s -X POST https://api.openai.com/v1/chat/completions \
-            -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD")
-          
-          echo "API Response: $RESPONSE"
+def generate_updated_code(file_name, task_description):
+    if os.path.exists(file_name):
+        with open(file_name, 'r') as file:
+            existing_code = file.read()
+    else:
+        existing_code = ""
 
-          GENERATED_CODE=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
-          echo "Generated code: $GENERATED_CODE"
+    prompt = (
+        f"Here is the existing code:\\n\\n{existing_code}\\n\\n"
+        f"Here is the task description:\\n\\n{task_description}\\n\\n"
+        "Please provide only the updated version of the code below:\\n"
+        "Updated code:\\n"
+    )
 
-          if [ "$GENERATED_CODE" = "null" ] || [ -z "$GENERATED_CODE" ]; then
-            echo "Generated code is null or empty. Exiting."
-            exit 1
-          fi
+    inputs = tokenizer(prompt, return_tensors="pt")
+    outputs = model.generate(**inputs, max_length=300)
+    generated_code = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    updated_code = generated_code.split("Updated code:\\n")[-1].strip()
 
-          echo "$GENERATED_CODE" > "$FILE_NAME"
+    return updated_code
 
-      - name: Update or Create File with Generated Code
+file_name = "${FILE_NAME}"
+task_description = "${ISSUE_BODY}"
+updated_code = generate_updated_code(file_name, task_description)
+
+with open(file_name, 'w') as file:
+    file.write(updated_code)
+
+print(f"Updated code written to {file_name}:")
+print(updated_code)
+EOF
+
+      - name: Commit and Push Changes
         run: |
-          ISSUE_TITLE="${{ github.event.issue.title }}"
-          FILE_NAME=$(echo "$ISSUE_TITLE" | tr ' ' '_').py
-
-          git add "$FILE_NAME"
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add $(echo "$ISSUE_TITLE" | tr ' ' '_').py
           git commit -m "Update file for issue $ISSUE_TITLE"
-
-          # Pull the latest changes from the remote repository to avoid conflicts
           git pull --rebase origin main
-          
-          # Configure remote URL to use the GitHub token
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-          
-          # Push the changes to the remote repository
           git push origin main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
