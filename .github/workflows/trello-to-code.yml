@@ -42,14 +42,20 @@ jobs:
           
           echo "Current file content: $CURRENT_CONTENT"
 
+          # Properly format the JSON payload
+          PAYLOAD=$(jq -n \
+            --arg current_content "$CURRENT_CONTENT" \
+            --arg issue_body "$ISSUE_BODY" \
+            '{
+              model: "text-davinci-003",
+              prompt: "Given the following existing code and task description, generate an updated version of the code. Existing code: \($current_content) Task description: \($issue_body)",
+              max_tokens: 150
+            }')
+
           RESPONSE=$(curl -s -X POST https://api.openai.com/v1/completions \
             -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
             -H "Content-Type: application/json" \
-            -d '{
-              "model": "text-davinci-003",
-              "prompt": "Given the following existing code and task description, generate an updated version of the code. Existing code: '"${CURRENT_CONTENT}"' Task description: '"${ISSUE_BODY}"'",
-              "max_tokens": 150
-            }')
+            -d "$PAYLOAD")
           
           echo "API Response: $RESPONSE"
 
